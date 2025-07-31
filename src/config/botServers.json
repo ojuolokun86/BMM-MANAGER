@@ -1,5 +1,5 @@
 [
-  { "id": "ORACLE", "name": "BMM ORACLE 1", "url": "http://129.159.9.73:3000", "maxLoad": 15 },
+  { "id": "ORACLE", "name": "BMM ORACLE 1", "url": "http://129.159.9.73:3000", "maxLoad": 20 },
   { "id": "AWS", "name": "BMM AWS", "url": "http://18.188.26.233:3000", "maxLoad": 20 },
   { "id": "ORACLE-2", "name": "BMM ORACLE 2", "url": "http://89.168.115.234:3000", "maxLoad": 20 },
   { "id": "test", "name": "BMM server 1", "url": "http://10.132.135.53:3000", "maxLoad": 10 }
