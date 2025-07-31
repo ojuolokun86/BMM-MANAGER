@@ -1,6 +1,29 @@
 import express from 'express';
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
 import { assignServerForUser } from '../services/loadBalancer.js';
+import supabase from '../supabaseClient.js';
+const botServers = JSON.parse(
+  fs.readFileSync(path.resolve('src/config/botServers.json'), 'utf-8')
+);
+
+export async function getAssignedServerUrl(authId, phoneNumber) {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('server_id')
+    .eq('authId', authId)
+    .eq('phoneNumber', phoneNumber)
+    .single();
+
+  if (error || !data) {
+    console.error('[ROUTER] Could not find assigned server for session:', error?.message);
+    return null;
+  }
+  const server = botServers.find(s => s.id === data.server_id);
+  return server ? server.url : null;
+}
+
 
 const router = express.Router();
 
@@ -52,34 +75,59 @@ router.post('/register', async (req, res) => {
 });
 
 // Add more proxy endpoints as needed
+
+
 router.get('/bots', async (req, res) => {
-//   console.log('📩Received request for bots');
+  console.log(' call all bot')
   const { authId } = req.query;
   if (!authId) return res.status(400).json({ error: 'authId is required' });
 
-  const serverUrl = await assignServerForUser(authId);
-  if (!serverUrl) return res.status(503).json({ error: 'No available bot server' });
-
   try {
-    //console.log(`🔗 Forwarding request to server: ${serverUrl}`);
-    // Forward to /api/bots, not /api/bot
-    const response = await axios.get(`${serverUrl}/api/bots`, { params: { authId } });
-    res.status(response.status).json(response.data);
+    const results = await Promise.allSettled(
+      botServers.map(server =>
+        axios.get(`${server.url}/api/bots`, { params: { authId } })
+      )
+    );
+    console.log(` result ${results}`)
+
+    // Aggregate all bots from fulfilled responses
+    const allBots = [];
+    results.forEach((result, idx) => {
+      const serverUrl = botServers[idx].url;
+      if (result.status === 'fulfilled') {
+        const data = result.value.data;
+        console.log(`[DEBUG] Response from ${serverUrl}:`, JSON.stringify(data));
+        // Accept both { bots: [...] } and [...] as valid
+        if (Array.isArray(data)) {
+          allBots.push(...data);
+        } else if (data && Array.isArray(data.bots)) {
+          allBots.push(...data.bots);
+        } else {
+          console.warn(`[WARN] Unexpected response format from ${serverUrl}:`, data);
+        }
+      } else {
+        console.error(`[ERROR] Failed to fetch from ${serverUrl}:`, result.reason?.message || result.reason);
+      }
+    });
+    console.log(`all bot for user ${authId}:`, allBots);
+
+    res.json({ success: true, bots: allBots });
   } catch (err) {
-    console.error('❌ Error fetching bots:', err.message);
+    console.error('❌ Error fetching bots from all servers:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+
 router.get('/bot-settings', async (req, res) => {
-  //console.log('🌐 Proxying /bot-settings...');
   const { authId, phoneNumber } = req.query;
   if (!authId || !phoneNumber) {
     return res.status(400).json({ success: false, message: 'authId and phoneNumber are required.' });
   }
 
   try {
-    const serverUrl = await assignServerForUser(authId, phoneNumber); // ✅ Add this line
-    if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+    const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+    if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
     const response = await axios.get(`${serverUrl}/api/bot-settings`, {
       params: { authId, phoneNumber }
@@ -99,8 +147,8 @@ router.post('/bot-settings', async (req, res) => {
   }
 
   try {
-    const serverUrl = await assignServerForUser(authId, phoneNumber);
-    if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+    const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+    if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
     // Forward the POST to the actual bot server
     const response = await axios.post(`${serverUrl}/api/bot-settings`, {
@@ -125,8 +173,8 @@ router.delete('/bot', async (req, res) => {
     return res.status(400).json({ success: false, message: 'authId and phoneNumber are required.' });
   }
 
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.delete(`${serverUrl}/api/bot`, { data: { authId, phoneNumber } });
@@ -144,8 +192,8 @@ router.post('/bot/restart', async (req, res) => {
     return res.status(400).json({ success: false, message: 'authId and phoneNumber are required.' });
   }
 
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.post(`${serverUrl}/api/bot/restart`, { authId, phoneNumber });
@@ -162,8 +210,8 @@ router.get('/bot-groups', async (req, res) => {
   if (!authId || !phoneNumber) {
     return res.status(400).json({ success: false, message: 'authId and phoneNumber are required.' });
   }
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.get(`${serverUrl}/api/bot-groups`, {
@@ -182,8 +230,8 @@ router.post('/set-antilink', async (req, res) => {
   if (!authId || !phoneNumber || !groupId) {
     return res.status(400).json({ success: false, message: 'authId, phoneNumber, and groupId are required.' });
   }
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.post(`${serverUrl}/api/set-antilink`, { authId, phoneNumber, groupId });
@@ -198,8 +246,8 @@ router.post('/set-antidelete', async (req, res) => {
   if (!authId || !phoneNumber || !groupId) {
     return res.status(400).json({ success: false, message: 'authId, phoneNumber, and groupId are required.' });
   }
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.post(`${serverUrl}/api/set-antidelete`, {
@@ -221,8 +269,8 @@ router.get('/group-settings', async (req, res) => {
   if (!authId || !phoneNumber || !groupId) {
     return res.status(400).json({ success: false, message: 'authId, phoneNumber, and groupId are required.' });
   }
-  const serverUrl = await assignServerForUser(authId, phoneNumber);
-  if (!serverUrl) return res.status(503).json({ success: false, message: 'No available bot server' });
+  const serverUrl = await getAssignedServerUrl(authId, phoneNumber);
+  if (!serverUrl) return res.status(503).json({ success: false, message: 'No assigned bot server' });
 
   try {
     const response = await axios.get(`${serverUrl}/api/group-settings`, {
