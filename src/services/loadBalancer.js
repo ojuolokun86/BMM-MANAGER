@@ -15,7 +15,7 @@ export async function assignServerForUser(authId, phoneNumber) {
   // 1. Get all sessions from Supabase
   const { data: sessions, error } = await supabase
     .from('sessions')
-    .select('server_id');
+    .select('authId, phoneNumber, server_id');
 
   if (error) {
     console.error('[SUPABASE] Error fetching sessions:', error.message);
@@ -37,11 +37,16 @@ export async function assignServerForUser(authId, phoneNumber) {
     return null;
   }
 
-  // 4. Log current loads
-  console.log('[LOAD BALANCER] Current server loads (from Supabase):');
-  healthyServers.forEach(s => {
-    console.log(`- ${s.id} (${s.url}): load = ${loadMap[s.id] || 0}`);
-  });
+  // 4. Check if session exists and is already assigned to a healthy server
+  const session = sessions.find(
+    s => s.authId === authId && s.phoneNumber === phoneNumber
+  );
+  if (session && healthyServers.some(s => s.id === session.server_id)) {
+    // Session is already running on a healthy server, just return the server URL
+    const assignedServer = healthyServers.find(s => s.id === session.server_id);
+    console.log('[LOAD BALANCER] Session already running on healthy server:', assignedServer.id);
+    return assignedServer.url;
+  }
 
   // 5. Pick the least-loaded healthy server
   healthyServers.sort((a, b) => (loadMap[a.id] || 0) - (loadMap[b.id] || 0));
@@ -51,11 +56,9 @@ export async function assignServerForUser(authId, phoneNumber) {
   // 6. Update Supabase to reflect assignment
   await supabase
     .from('sessions')
-    .update({ server_id: assignedServer.id })
-    .eq('authId', authId)
-    .eq('phoneNumber', phoneNumber);
+    .upsert([{ authId, phoneNumber, server_id: assignedServer.id }], { onConflict: ['authId', 'phoneNumber'] });
 
-  // 7. Notify the assigned server to load the session
+  // 7. Notify the assigned server to load the session (only if not already running)
   notifyServerToLoadSession(assignedServer, authId, phoneNumber);
 
   return assignedServer.url;
