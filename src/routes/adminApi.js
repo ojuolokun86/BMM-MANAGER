@@ -222,6 +222,7 @@ router.get('/dashboard-stats', async (req, res) => {
       recentFailedLogins
     });
     //console.log('Active sessions:', activeSessions)
+    console.log('📤 Getting dashboard stats:', serverLoad)
   } catch (err) {
     console.error('📤 Getting dashboard stats failed:', err.message);
     res.status(500).json({ error: err.message });

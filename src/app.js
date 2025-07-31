@@ -7,6 +7,9 @@ import adminApiRouter from './routes/adminApi.js';
 import { assignServerForUser } from './services/loadBalancer.js';
 import { io as backendIO } from 'socket.io-client';
 import fs from 'fs';
+import { setupAllWebSockets } from './services/healthMonitor.js';
+
+
 
 
 const allowedOrigins = [
@@ -65,7 +68,7 @@ const io = new SocketIOServer(server, {
     credentials: true
   }
 });
-
+setupAllWebSockets();
 // --- Socket.IO Proxy ---
 const sessionCache = new Map(); // Map<room, { qr, pairingCode }>
 
