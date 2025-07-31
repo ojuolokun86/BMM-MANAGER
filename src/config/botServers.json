@@ -1,0 +1,4 @@
+[
+  { "id": "test", "name": "BMM server 1", "url": "http://10.132.135.53:3000", "maxLoad": 10 },
+  { "id": "ORACLE", "name": "BMM ORACLE 1", "url": "http://129.159.9.73:3000", "maxLoad": 15 }
+]
