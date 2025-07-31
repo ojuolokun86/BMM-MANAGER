@@ -30,13 +30,28 @@ export function assignServerForUser(authId, phoneNumber) {
     return server ? server.url : null;
   }
 
-  // Assign to least-loaded healthy server
+  // Assign to least-loaded healthy server (live load from WebSocket)
   healthyServers.sort((a, b) => (a.load || 0) - (b.load || 0));
   const assignedServer = healthyServers[0];
   sessionAssignments[sessionKey] = assignedServer.id;
+
+  // Optionally: update Supabase to reflect assignment
+  supabase
+    .from('sessions')
+    .update({ server_id: assignedServer.id })
+    .eq('authId', authId)
+    .eq('phoneNumber', phoneNumber)
+    .then(({ error }) => {
+      if (error) {
+        console.error(`Failed to update session assignment in Supabase:`, error.message);
+      }
+    });
+
+  // Notify the assigned server to load the session
+  notifyServerToLoadSession(assignedServer, authId, phoneNumber);
+
   return assignedServer.url;
 }
-
 export function getSessionAssignments() {
   return sessionAssignments; // Make sure this variable exists and is up-to-date
 }
