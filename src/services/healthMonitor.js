@@ -54,6 +54,7 @@ function setupWebSocket(server) {
       healthy: true,
       lastSeen: Date.now()
     };
+    console.log(`[HEALTH][WS] Updated status for ${server.id}:`, serverStatus[server.id]);
   });
 
   wsClients[server.id] = ws;

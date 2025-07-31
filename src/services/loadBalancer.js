@@ -31,8 +31,14 @@ export function assignServerForUser(authId, phoneNumber) {
   }
 
   // Assign to least-loaded healthy server (live load from WebSocket)
+  console.log('[LOAD BALANCER] Current server loads:');
+  healthyServers.forEach(s => {
+    console.log(`- ${s.id} (${s.url}): load = ${s.load}`);
+  });
+  
   healthyServers.sort((a, b) => (a.load || 0) - (b.load || 0));
   const assignedServer = healthyServers[0];
+  console.log('[LOAD BALANCER] Assigning session to:', assignedServer.id);
   sessionAssignments[sessionKey] = assignedServer.id;
 
   // Optionally: update Supabase to reflect assignment
