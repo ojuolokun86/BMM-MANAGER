@@ -58,8 +58,6 @@ export async function assignServerForUser(authId, phoneNumber) {
     .from('sessions')
     .upsert([{ authId, phoneNumber, server_id: assignedServer.id }], { onConflict: ['authId', 'phoneNumber'] });
 
-  // 7. Notify the assigned server to load the session (only if not already running)
-  notifyServerToLoadSession(assignedServer, authId, phoneNumber);
 
   return assignedServer.url;
 }
