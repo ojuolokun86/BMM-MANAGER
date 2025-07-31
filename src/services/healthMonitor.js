@@ -9,7 +9,7 @@ const botServers = JSON.parse(
 
 const serverStatus = {};
 const wsClients = {};
-const HEALTH_INTERVAL = 5000; // 5 seconds
+const HEALTH_INTERVAL = 10000; // 10 second
 
 async function pingServer(server) {
   try {

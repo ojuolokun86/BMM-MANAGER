@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { isServerHealthy, getHealthyServers } from './healthMonitor.js';
+import { isServerHealthy, getHealthyServers, getServerStatusArray } from './healthMonitor.js';
 
 const botServers = JSON.parse(
   fs.readFileSync(path.resolve('src/config/botServers.json'), 'utf-8')
@@ -11,7 +11,11 @@ const sessionAssignments = {}; // { sessionKey: serverId }
 
 export async function assignServerForUser(authId, phoneNumber) {
   // Only use healthy servers
-  const healthyServers = getHealthyServers();
+  const healthyServers = getServerStatusArray().filter(s => s.healthy);
+  if (healthyServers.length > 0) {
+    // Use your preferred selection strategy (first, round-robin, least loaded, etc.)
+    return healthyServers[0].url;
+  }
   if (!healthyServers.length) {
     console.error('No healthy bot servers available');
     return null; // instead of throw new Error(...)
