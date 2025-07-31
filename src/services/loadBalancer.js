@@ -11,8 +11,25 @@ const botServers = JSON.parse(
 let lastIndex = 0;
 const sessionAssignments = {}; // { sessionKey: serverId }
 
-export function assignServerForUser(authId, phoneNumber) {
-  // Only use healthy servers
+export async function assignServerForUser(authId, phoneNumber) {
+  // 1. Get all sessions from Supabase
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select('server_id');
+
+  if (error) {
+    console.error('[SUPABASE] Error fetching sessions:', error.message);
+    return null;
+  }
+
+  // 2. Count sessions per server
+  const loadMap = {};
+  for (const s of sessions) {
+    if (!loadMap[s.server_id]) loadMap[s.server_id] = 0;
+    loadMap[s.server_id]++;
+  }
+
+  // 3. Get healthy servers
   const healthyServers = getServerStatusArray().filter(s => s.healthy);
 
   if (!healthyServers.length) {
@@ -20,40 +37,25 @@ export function assignServerForUser(authId, phoneNumber) {
     return null;
   }
 
-  // Sticky assignment if exists and still healthy
-  const sessionKey = `${authId}:${phoneNumber}`;
-  if (
-    sessionAssignments[sessionKey] &&
-    isServerHealthy(sessionAssignments[sessionKey])
-  ) {
-    const server = botServers.find(s => s.id === sessionAssignments[sessionKey]);
-    return server ? server.url : null;
-  }
-
-  // Assign to least-loaded healthy server (live load from WebSocket)
-  console.log('[LOAD BALANCER] Current server loads:');
+  // 4. Log current loads
+  console.log('[LOAD BALANCER] Current server loads (from Supabase):');
   healthyServers.forEach(s => {
-    console.log(`- ${s.id} (${s.url}): load = ${s.load}`);
+    console.log(`- ${s.id} (${s.url}): load = ${loadMap[s.id] || 0}`);
   });
-  
-  healthyServers.sort((a, b) => (a.load || 0) - (b.load || 0));
+
+  // 5. Pick the least-loaded healthy server
+  healthyServers.sort((a, b) => (loadMap[a.id] || 0) - (loadMap[b.id] || 0));
   const assignedServer = healthyServers[0];
   console.log('[LOAD BALANCER] Assigning session to:', assignedServer.id);
-  sessionAssignments[sessionKey] = assignedServer.id;
 
-  // Optionally: update Supabase to reflect assignment
-  supabase
+  // 6. Update Supabase to reflect assignment
+  await supabase
     .from('sessions')
     .update({ server_id: assignedServer.id })
     .eq('authId', authId)
-    .eq('phoneNumber', phoneNumber)
-    .then(({ error }) => {
-      if (error) {
-        console.error(`Failed to update session assignment in Supabase:`, error.message);
-      }
-    });
+    .eq('phoneNumber', phoneNumber);
 
-  // Notify the assigned server to load the session
+  // 7. Notify the assigned server to load the session
   notifyServerToLoadSession(assignedServer, authId, phoneNumber);
 
   return assignedServer.url;
