@@ -9,7 +9,7 @@ const botServers = JSON.parse(
 
 const serverStatus = {};
 const wsClients = {};
-const HEALTH_INTERVAL = 10000; // 10 seconds
+const HEALTH_INTERVAL = 5000; // 5 seconds
 
 async function pingServer(server) {
   try {
@@ -63,7 +63,7 @@ async function checkAllServers() {
   for (const server of botServers) {
     const healthy = await pingServer(server);
     const wsHealthy = serverStatus[server.id]?.wsHealthy ?? false;
-    //console.log(`[HEALTH][WS] ${server.id} wsHealthy:`, serverStatus[server.id]?.wsHealthy);
+    console.log(`[HEALTH][WS] ${server.id} wsHealthy:`, serverStatus[server.id]?.wsHealthy);
     //console.log(`[HEALTH][WS] ${server.id} healthy:`, serverStatus[server.id]?.healthy);
 
     // Fetch userCount from this server
