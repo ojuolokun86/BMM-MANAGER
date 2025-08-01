@@ -54,9 +54,9 @@ export async function assignServerForUser(authId, phoneNumber) {
   console.log('[LOAD BALANCER] Assigning session to:', assignedServer.id);
 
   // 6. Update Supabase to reflect assignment
-  await supabase
-    .from('sessions')
-    .upsert([{ authId, phoneNumber, server_id: assignedServer.id }], { onConflict: ['authId', 'phoneNumber'] });
+  // await supabase
+  //   .from('sessions')
+  //   .upsert([{ authId, phoneNumber, server_id: assignedServer.id }], { onConflict: ['authId', 'phoneNumber'] });
 
 
   return assignedServer.url;
@@ -72,58 +72,58 @@ export function getSessionAssignments() {
 export async function reassignSessionsFromSupabase(deadServerId) {
   console.log(`[REASSIGN] Reassigning sessions from dead server ${deadServerId}`);
   // 1. Get all sessions assigned to deadServerId
-  const { data: sessions, error } = await supabase
-    .from('sessions')
-    .select('authId, phoneNumber')
-    .eq('server_id', deadServerId);
+  // const { data: sessions, error } = await supabase
+  //   .from('sessions')
+  //   .select('authId, phoneNumber')
+  //   .eq('server_id', deadServerId);
 
-  if (error) {
-    console.error('[SUPABASE] Error fetching sessions:', error.message);
-    return;
-  }
-  if (!sessions.length) {
-    console.log(`[REASSIGN] No sessions found in Supabase for ${deadServerId}`);
-    return;
-  }
+  // if (error) {
+  //   console.error('[SUPABASE] Error fetching sessions:', error.message);
+  //   return;
+  // }
+  // if (!sessions.length) {
+  //   console.log(`[REASSIGN] No sessions found in Supabase for ${deadServerId}`);
+  //   return;
+  // }
 
-  // 2. Get healthy servers
-  const healthyServers = getServerStatusArray().filter(s => s.healthy && s.id !== deadServerId);
-  if (!healthyServers.length) {
-    console.error('[LOAD BALANCER] No healthy servers available!');
-    return;
-  }
+  // // 2. Get healthy servers
+  // const healthyServers = getServerStatusArray().filter(s => s.healthy && s.id !== deadServerId);
+  // if (!healthyServers.length) {
+  //   console.error('[LOAD BALANCER] No healthy servers available!');
+  //   return;
+  // }
 
-  // 3. Reassign each session to the least-loaded healthy server
-  for (const { authId, phoneNumber } of sessions) {
-    healthyServers.sort((a, b) => (a.load || 0) - (b.load || 0));
-    const newServer = healthyServers[0];
+  // // 3. Reassign each session to the least-loaded healthy server
+  // for (const { authId, phoneNumber } of sessions) {
+  //   healthyServers.sort((a, b) => (a.load || 0) - (b.load || 0));
+  //   const newServer = healthyServers[0];
 
-    // 4. Update Supabase to reflect the new server assignment
-    const { error: updateError } = await supabase
-      .from('sessions')
-      .update({ server_id: newServer.id })
-      .eq('authId', authId)
-      .eq('phoneNumber', phoneNumber);
-    if (updateError) {
-      console.error(`[SUPABASE] Failed to update session for ${authId}:${phoneNumber}:`, updateError.message);
-      continue;
-    }
+  //   // 4. Update Supabase to reflect the new server assignment
+  //   const { error: updateError } = await supabase
+  //     .from('sessions')
+  //     .update({ server_id: newServer.id })
+  //     .eq('authId', authId)
+  //     .eq('phoneNumber', phoneNumber);
+  //   if (updateError) {
+  //     console.error(`[SUPABASE] Failed to update session for ${authId}:${phoneNumber}:`, updateError.message);
+  //     continue;
+  //   }
 
-    // 5. Notify the new server to load the session
-    notifyServerToLoadSession(newServer, authId, phoneNumber);
-    console.log(`[REASSIGN] Moved session ${authId}:${phoneNumber} from ${deadServerId} to ${newServer.id}`);
-  }
+  //   // 5. Notify the new server to load the session
+  //   notifyServerToLoadSession(newServer, authId, phoneNumber);
+  //   console.log(`[REASSIGN] Moved session ${authId}:${phoneNumber} from ${deadServerId} to ${newServer.id}`);
+  // }
 }
 
 
 export function notifyServerToLoadSession(server, authId, phoneNumber) {
   console.log(`[NOTIFY] Notifying ${server.id} to load session for ${authId}:${phoneNumber}`);
   // This endpoint should be implemented on your bot server backend
-  axios.post(`${server.url}/api/admin/load-session`, { authId, phoneNumber })
-    .then(() => {
-      console.log(`✅ Session for ${authId}:${phoneNumber} loaded on server ${server.id}`);
-    })
-    .catch(err => {
-      console.error(`❌ Failed to load session on server ${server.id}:`, err.message);
-    });
+  // axios.post(`${server.url}/api/admin/load-session`, { authId, phoneNumber })
+  //   .then(() => {
+  //     console.log(`✅ Session for ${authId}:${phoneNumber} loaded on server ${server.id}`);
+  //   })
+  //   .catch(err => {
+  //     console.error(`❌ Failed to load session on server ${server.id}:`, err.message);
+  //   });
 }
