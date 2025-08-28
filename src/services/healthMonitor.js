@@ -26,6 +26,7 @@ function setupWebSocket(server) {
     reconnectionDelay: 2000
   });
 
+ 
   ws.on('connect', () => {
     console.log(`[HEALTH][WS] Connected to ${server.id} (${server.url})`);
     serverStatus[server.id] = {
@@ -82,4 +83,3 @@ export function getServerStatus() {
 }
 // Export the status map for direct use
 export { serverStatus };
-

@@ -134,55 +134,84 @@ router.get('/subscriptions', async (req, res) => {
   }
 });
 
+// Map of subscription plans to their bot limits
+const PLAN_LIMITS = {
+  'trier': 1,    // Free tier
+  'basic': 1,    // Basic tier
+  'gold': 3,     // Gold tier
+  'premium': 5   // Premium tier
+};
+
 // Subscribe a user to a plan
 router.post('/subscribe', async (req, res) => {
-  //console.log('📥 Subscribe request received');
+  console.log('📥 Subscribe request received:', req.body);
   let { user_auth_id, plan, duration_days, bot_limit } = req.body;
+  
   if (!user_auth_id || !plan || !duration_days) {
-    //console.log('📥 Subscribe request received', req.body);
-    return res.status(400).json({ error: 'Missing fields' });
+    return res.status(400).json({ 
+      success: false,
+      error: 'Missing required fields: user_auth_id, plan, and duration_days are required' 
+    });
   }
 
   // Map 'free' to 'trier' for DB
   if (plan === 'free') plan = 'trier';
 
   // Validate plan
-  const validPlans = ['trier', 'basic', 'gold', 'premium'];
+  const validPlans = Object.keys(PLAN_LIMITS);
   if (!validPlans.includes(plan)) {
-    //console.log('Invalid plan', req.body);
-    return res.status(400).json({ error: 'Invalid plan' });
+    return res.status(400).json({ 
+      success: false,
+      error: `Invalid plan. Must be one of: ${validPlans.join(', ')}` 
+    });
   }
 
-  const expiration_date = new Date(Date.now() + duration_days * 24 * 60 * 60 * 1000);
-  const token_id = crypto.randomBytes(16).toString('hex');
+  // Calculate expiration date
+  const expiration_date = new Date();
+  expiration_date.setDate(expiration_date.getDate() + parseInt(duration_days));
 
   try {
-    // Remove any existing subscription for this user (enforce unique_user_auth_id)
-    await supabase
-      .from('subscription_tokens')
-      .delete()
-      .eq('user_auth_id', user_auth_id);
+    // Get the bot limit for the plan (use provided bot_limit if it's less than plan's max)
+    const planBotLimit = PLAN_LIMITS[plan];
+    const finalBotLimit = bot_limit && bot_limit <= planBotLimit 
+      ? parseInt(bot_limit) 
+      : planBotLimit;
 
-    // Insert new subscription
-    const insertObj = {
-      user_auth_id,
-      subscription_level: plan,
-      expiration_date: expiration_date.toISOString(),
-      created_at: new Date().toISOString(),
-      token_id,
-    };
-    if (bot_limit !== undefined) insertObj.bot_limit = bot_limit;
-
+    // Upsert the subscription
     const { data, error } = await supabase
       .from('subscription_tokens')
-      .insert([insertObj])
+      .upsert(
+        {
+          user_auth_id: parseInt(user_auth_id),
+          subscription_level: plan,
+          expiration_date: expiration_date.toISOString(),
+          bot_limit: finalBotLimit,
+          updated_at: new Date().toISOString()
+        },
+        { 
+          onConflict: 'user_auth_id',
+          ignoreDuplicates: false
+        }
+      )
       .select();
+
     if (error) throw error;
-    //console.log('📤 Subscription created:', data[0]);
-    res.json({ success: true, subscription: data[0] });
+
+    res.json({ 
+      success: true, 
+      subscription: {
+        ...data[0],
+        bot_limit: finalBotLimit
+      } 
+    });
+
   } catch (err) {
-    //console.error('📤 Subscription creation failed:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('❌ Error in subscribe:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to process subscription',
+      details: err.message 
+    });
   }
 });
 

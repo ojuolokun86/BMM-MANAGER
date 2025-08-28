@@ -42,10 +42,12 @@ export async function assignServerForUser(authId, phoneNumber) {
     s => s.authId === authId && s.phoneNumber === phoneNumber
   );
   if (session && healthyServers.some(s => s.id === session.server_id)) {
-    // Session is already running on a healthy server, just return the server URL
-    const assignedServer = healthyServers.find(s => s.id === session.server_id);
-    console.log('[LOAD BALANCER] Session already running on healthy server:', assignedServer.id);
-    return assignedServer.url;
+    // If only checking, return the server URL
+    // if (options.checkOnly) {
+    //   return healthyServers.find(s => s.id === session.server_id).url;
+    // }
+    // Otherwise, return the server URL for normal assignment
+    return healthyServers.find(s => s.id === session.server_id).url;
   }
 
   // 5. Pick the least-loaded healthy server

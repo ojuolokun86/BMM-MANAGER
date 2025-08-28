@@ -60,6 +60,10 @@ app.use(cors({
 app.use(express.json());
 app.use('/api', apiRouter);
 app.use('/api/admin', adminApiRouter); // Serve admin static files
+app.get('/api/health', (req, res) => {
+  console.log('Health check request post');
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
 
 const server = createServer(app);
 const io = new SocketIOServer(server, {
