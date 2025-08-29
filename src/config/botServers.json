@@ -1,5 +1,4 @@
 [
-  { "id": "test", "name": "BMM server 1", "url": "http://localhost:3000", "maxLoad": 10 },
   { "id": "AZURE", "name": "BMM AZURE", "url": "http://172.201.104.11:3000", "maxLoad": 50 },
-  { "id": "AWS", "name": "BMM AWS", "url": "http://3.143.111.240:3000", "maxLoad": 50 }
+  { "id": "AWS", "name": "BMM AWS", "url": "http://35.178.186.27:3000", "maxLoad": 50 }
 ]
