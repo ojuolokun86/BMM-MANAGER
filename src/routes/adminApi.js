@@ -177,23 +177,42 @@ router.post('/subscribe', async (req, res) => {
       ? parseInt(bot_limit) 
       : planBotLimit;
 
-    // Upsert the subscription
-    const { data, error } = await supabase
+    // Check if a subscription already exists for this user
+    const existingRes = await supabase
       .from('subscription_tokens')
-      .upsert(
-        {
-          user_auth_id: parseInt(user_auth_id),
+      .select('id, token_id')
+      .eq('user_auth_id', parseInt(user_auth_id))
+      .maybeSingle();
+
+    if (existingRes.error && existingRes.error.code !== 'PGRST116') throw existingRes.error; // propagate non-not-found errors
+
+    let data, error;
+
+    if (existingRes.data) {
+      // Update existing row (keep original token_id)
+      ({ data, error } = await supabase
+        .from('subscription_tokens')
+        .update({
           subscription_level: plan,
           expiration_date: expiration_date.toISOString(),
           bot_limit: finalBotLimit,
-          updated_at: new Date().toISOString()
-        },
-        { 
-          onConflict: 'user_auth_id',
-          ignoreDuplicates: false
-        }
-      )
-      .select();
+        })
+        .eq('user_auth_id', parseInt(user_auth_id))
+        .select());
+    } else {
+      // Insert new row with generated token_id (NOT NULL)
+      const token_id = (crypto.randomUUID?.() || crypto.randomBytes(16).toString('hex'));
+      ({ data, error } = await supabase
+        .from('subscription_tokens')
+        .insert({
+          user_auth_id: parseInt(user_auth_id),
+          token_id,
+          subscription_level: plan,
+          expiration_date: expiration_date.toISOString(),
+          bot_limit: finalBotLimit,
+        })
+        .select());
+    }
 
     if (error) throw error;
 
